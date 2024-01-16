@@ -1,0 +1,63 @@
+def internalTestAgents = [
+    [ name: "Python 2.7", image: "python:2.7.18-alpine3.11" ], 
+    [ name: "Python 3.2", image: "python:3.2-alpine" ], 
+    [ name: "Latest Python", image: "python:latest" ] 
+]
+
+def runUnitTest(String pythonVersion, String agentImage) {
+    return {
+        node {
+            docker.image(agentImage).inside() {
+                stage ("UNIT for ${ pythonVersion }") {
+                    echo "Run unit tests on ${ agentImage } with image ${ pythonVersion }"
+                    sh "python --version"
+                }
+            }
+        }
+    }
+}
+
+def parallelUnitTestsMap = internalTestAgents.collectEntries {
+    ["Test's FOR ${ it.name }": runUnitTest(it.name, it.image)]
+}
+
+pipeline {
+    agent any
+    options {
+        timestamps()
+    }
+    stages {
+        stage('Code Lint') {
+            steps {
+                parallel (
+                    flake: {
+                        echo "flake"
+                    },
+                    pylint: {
+                        echo "pylint"
+                    }
+                )
+            }
+        }
+
+        stage('Unit tests') {
+            steps {
+                script {
+                    parallel parallelUnitTestsMap
+                }
+            }
+        }
+
+        stage ('Call another pipeline') {
+            steps {
+                echo "call another job"
+            }
+        }
+    }
+    post {
+        always {
+            cleanWs notFailBuild: true
+        }
+    }
+}
+
