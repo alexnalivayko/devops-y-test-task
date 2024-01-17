@@ -29,7 +29,9 @@ pipeline {
     stages {
         stage('Code Lint') {
             steps {
-                parallel parallelLintsMap
+                script {
+                    parallel parallelLintsMap
+                }
             }
         }
 
