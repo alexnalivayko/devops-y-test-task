@@ -9,9 +9,9 @@ def fib(n):
 
 
 def main() -> int:
-    args = sys.argv[1:] # удалить первый аргумент, т.к. это имя скрипта
+    args = sys.argv[1:]  # удалить первый аргумент, т.к. это имя скрипта
 
-    if(len(args) != 1):
+    if (len(args) != 1):
         raise Exception("Number of args != 1")
 
     n = int(args[0])
@@ -19,6 +19,7 @@ def main() -> int:
         raise Exception("Incorrect input")
     else:
         return fib(n)
+
 
 if __name__ == "__main__":
     print(main())

@@ -1,11 +1,11 @@
 def internalTestAgents = [
-    [ name: "Python 2.7", image: "python:2.7.18-alpine3.11" ], 
-    [ name: "Python 3.2", image: "python:3.2-alpine" ], 
-    [ name: "Latest Python", image: "python:latest" ] 
+    [ name: "Python 2.7", image: "python:2.7.18-alpine3.11", cmd: 'pip' ], 
+    [ name: "Python 3.2", image: "python:3.2-alpine", cmd: 'pip3' ], 
+    [ name: "Latest Python", image: "python:latest", cmd: 'pip3' ] 
 ]
 
 def lintTest = [
-    [ name: 'flack8', command: 'flake8 ./*.py --format=pylint' ],
+    [ name: 'flake8', command: 'flake8 ./*.py --format=pylint' ],
     [ name: 'pylint', command: 'pylint ./ --output-format=text' ]
 ]
 
@@ -14,7 +14,7 @@ def parallelUnitTestsMap = internalTestAgents.collectEntries {
 }
 
 def parallelLintsMap = lintTest.collectEntries {
-    ["Lint by ${ it.name }": runLint(it.name, it.command)]
+    ["Lint by ${ it.name }": runLint(it.name, it.command, internalTestAgents)]
 }
 
 pipeline {
@@ -27,6 +27,13 @@ pipeline {
         TESTS_DIR = "tests"
     }
     stages {
+        stage('Prepare pipeline') {
+            steps {
+                script {
+                    stash name: "source-data", includes: "**/*"
+                }
+            }
+        }
         stage('Code Lint') {
             steps {
                 script {
@@ -69,15 +76,23 @@ def runUnitTest(String pythonVersion, String agentImage) {
     }
 }
 
-def runLint(String frameworkName, String command) {
+def runLint(String frameworkName, String command, agents) {
     return {
         node {
-            stage ("Lint by ${ frameworkName }") {
-                def response = sh script: command, returnStdout: true
-                if(response.trim() != '')
-                    error "Lint by \"${ frameworkName }\" failed by errors: \n${ response }"
+            agents.each { agent ->
+                docker.image(agent.image).inside() {
+                    stage ("Lint by \"${ frameworkName }\" on \"${ agent.name }\"") {
+                        echo "Run lint by \"${ frameworkName }\" on \"${ agent.image }\" stack"
+                        
+                        unstash 'source-data'
+                        
+                        sh "${agent.cmd} install ${ frameworkName }" // pip install flake8
 
-                echo "Lint by \"${ frameworkName }\" successfully passed"
+                        def result = sh script: command, returnStdout: true 
+                        
+                        echo "\"${ frameworkName }:${ agent.name }\" RESULT: ${ result }"
+                    }
+                }
             }
         }
     }
