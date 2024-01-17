@@ -70,7 +70,7 @@ def runUnitTest(String pythonVersion, String agentImage) {
 }
 
 def runLint(String frameworkName, String command) {
-    retun {
+    return {
         node {
             stage ("Lint by ${ frameworkName }") {
                 def response = sh script: command, returnStdout: true
