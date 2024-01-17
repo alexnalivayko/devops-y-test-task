@@ -4,21 +4,17 @@ def internalTestAgents = [
     [ name: "Latest Python", image: "python:latest" ] 
 ]
 
-def runUnitTest(String pythonVersion, String agentImage) {
-    return {
-        node {
-            docker.image(agentImage).inside() {
-                stage ("UNIT for ${ pythonVersion }") {
-                    echo "Run unit tests on ${ agentImage } with image ${ pythonVersion }"
-                    sh "python --version"
-                }
-            }
-        }
-    }
-}
+def lintTest = [
+    [ name: 'flack8', command: 'flake8 ./*.py --format=pylint' ],
+    [ name: 'pylint', command: 'pylint ./ --output-format=text' ]
+]
 
 def parallelUnitTestsMap = internalTestAgents.collectEntries {
     ["Test's FOR ${ it.name }": runUnitTest(it.name, it.image)]
+}
+
+def parallelLintsMap = lintTest.collectEntries {
+    ["Lint by ${ it.name }": runLint(it.name, it.command)]
 }
 
 pipeline {
@@ -26,17 +22,14 @@ pipeline {
     options {
         timestamps()
     }
+    environment {
+        SOURCE_DIR = "src"
+        TESTS_DIR = "tests"
+    }
     stages {
         stage('Code Lint') {
             steps {
-                parallel (
-                    flake: {
-                        echo "flake"
-                    },
-                    pylint: {
-                        echo "pylint"
-                    }
-                )
+                parallel parallelLintsMap
             }
         }
 
@@ -61,3 +54,29 @@ pipeline {
     }
 }
 
+def runUnitTest(String pythonVersion, String agentImage) {
+    return {
+        node {
+            docker.image(agentImage).inside() {
+                stage ("UNIT for ${ pythonVersion }") {
+                    echo "Run unit tests on ${ agentImage } with image ${ pythonVersion }"
+                    sh "python --version"
+                }
+            }
+        }
+    }
+}
+
+def runLint(String frameworkName, String command) {
+    retun {
+        node {
+            stage ("Lint by ${ frameworkName }") {
+                def response = sh script: command, returnStdout: true
+                if(response.trim() != '')
+                    error "Lint by \"${ frameworkName }\" failed by errors: \n${ response }"
+
+                echo "Lint by \"${ frameworkName }\" successfully passed"
+            }
+        }
+    }
+}
